@@ -1,0 +1,71 @@
+services:
+
+  petdate-db:
+    image: mongo:7.0
+    container_name: db-PetDate
+    ports:
+      - "27017:27017"
+    volumes:
+      - petdate-data:/data/db
+    networks:
+      - petdate-network
+    environment:
+      MONGO_INITDB_DATABASE: ${MONGO_DATABASE}
+      MONGO_INITDB_ROOT_USERNAME: ${MONGO_USER}
+      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_PASSWORD}
+    healthcheck:
+      test: ["CMD", "mongosh", "--username", "${MONGO_USER}", "--password", "${MONGO_PASSWORD}", "--eval", "db.adminCommand('ping')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+
+  imagen-server:
+    build: ./image-server
+    container_name: petdate-imagen-server
+    expose:
+      - "80"
+    volumes:
+      - petdate-uploads:/usr/share/nginx/html/uploads
+    networks:
+      - petdate-network
+    restart: unless-stopped
+
+  mongo-backup:
+    image: mongo:7.0
+    container_name: petdate-backup
+    volumes:
+      - ./backups:/backups
+    depends_on:
+      petdate-db:
+        condition: service_healthy
+    networks:
+      - petdate-network
+    environment:
+      MONGO_USER: ${MONGO_USER}
+      MONGO_PASSWORD: ${MONGO_PASSWORD}
+      MONGO_DATABASE: ${MONGO_DATABASE}
+    entrypoint: >
+      /bin/sh -c "
+        while true; do
+          FECHA=$$(date +%Y-%m-%d_%H-%M-%S);
+          mongodump --host petdate-db --port 27017 --username $$MONGO_USER --password $$MONGO_PASSWORD --authenticationDatabase admin --db $$MONGO_DATABASE --archive=/backups/backup_$$FECHA.gz --gzip;
+          echo \"Backup creado: backup_$$FECHA.gz\";
+          find /backups -name '*.gz' -mtime +7 -delete;
+          sleep 86400;
+        done
+      "
+    restart: unless-stopped
+
+volumes:
+  petdate-data:
+  # Volumen compartido de imagenes: lo escriben ms-mascotas y ms-servicios
+  # (montado como external en Backend/docker-compose.yml) y lo sirve este
+  # mismo stack a traves de "imagen-server".
+  petdate-uploads:
+    name: petdate-uploads
+
+networks:
+  petdate-network:
+    name: petdate-network
+    driver: bridge
