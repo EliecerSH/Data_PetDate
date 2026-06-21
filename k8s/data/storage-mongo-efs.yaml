@@ -1,22 +1,3 @@
-# =====================================================================
-# Almacenamiento de MongoDB y de los backups sobre EFS (NO sobre EBS).
-#
-# Por que: el EBS CSI driver dinamico necesita permisos IAM
-# (ec2:DescribeAvailabilityZones, CreateVolume, AttachVolume, etc.) que
-# AWS Academy Learner Lab no permite otorgar al rol del nodo (no se puede
-# hacer iam:AttachRolePolicy ni iam:PutRolePolicy). En cambio, un volumen
-# EFS estatico solo necesita montar NFS via la IP del mount target (DNS),
-# sin ninguna llamada a la API de EC2/IAM en tiempo de ejecucion. Usamos
-# el MISMO File System EFS que k8s/03-storage.yaml (fs-EFSID), separando
-# los datos con "subPath" en cada Deployment/StatefulSet/CronJob:
-#   - mongo-data-pvc    -> subPath "mongodb"      (datos de Mongo)
-#   - mongo-backup-pvc  -> subPath "mongo-backups" (dumps diarios)
-#
-# Prerrequisito: el mismo de k8s/03-storage.yaml (EFS creado + addon
-# aws-efs-csi-driver instalado). Reemplazar fs-EFSID con el ID real
-# (el pipeline deploy-data.yml ya lo hace con sed, igual que con
-# k8s/03-storage.yaml).
-# =====================================================================
 apiVersion: v1
 kind: PersistentVolume
 metadata:
