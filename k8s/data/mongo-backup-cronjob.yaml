@@ -1,17 +1,8 @@
 # Respaldo diario de MongoDB (equivalente al servicio "mongo-backup" de
 # Data/docker-compose.yml), pero como CronJob de Kubernetes en lugar de un
-# contenedor con loop infinito. Retiene los ultimos 7 dumps en un PVC.
-apiVersion: v1
-kind: PersistentVolumeClaim
-metadata:
-  name: mongo-backup-pvc
-  namespace: petdate
-spec:
-  accessModes: ["ReadWriteOnce"]
-  resources:
-    requests:
-      storage: 10Gi
----
+# contenedor con loop infinito. Retiene los ultimos 7 dumps en un PVC
+# estatico sobre EFS (k8s/data/storage-mongo-efs.yaml, PVC mongo-backup-pvc),
+# no sobre EBS dinamico (ver nota de IAM en storage-mongo-efs.yaml).
 apiVersion: batch/v1
 kind: CronJob
 metadata:
@@ -52,6 +43,7 @@ spec:
               volumeMounts:
                 - name: backups
                   mountPath: /backups
+                  subPath: mongo-backups   # subdirectorio dentro del EFS, separado de mongodb/ y de uploads
           volumes:
             - name: backups
               persistentVolumeClaim:

@@ -2,7 +2,7 @@ name: Deploy Data Layer to EKS
 
 on:
   push:
-    branches: [ deploy ]
+    branches: [ main ]
   workflow_dispatch: {}
 
 env:
@@ -62,8 +62,9 @@ jobs:
         env:
           EFS_FILE_SYSTEM_ID: ${{ secrets.EFS_FILE_SYSTEM_ID }}
         run: |
-          sed -i "s/fs-EFSID/${EFS_FILE_SYSTEM_ID}/g" k8s/03-storage.yaml
+          sed -i "s/fs-EFSID/${EFS_FILE_SYSTEM_ID}/g" k8s/03-storage.yaml k8s/data/storage-mongo-efs.yaml
           kubectl apply -f k8s/03-storage.yaml
+          kubectl apply -f k8s/data/storage-mongo-efs.yaml
 
       - name: Deploy MongoDB (StatefulSet) + backup CronJob
         run: |

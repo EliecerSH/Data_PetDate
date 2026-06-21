@@ -4,8 +4,6 @@ metadata:
   name: petdate-config
   namespace: petdate
 data:
-  # DNS interno de Kubernetes (Service discovery): <service>.<namespace>.svc.cluster.local
-  # Se usa el nombre corto porque todos los pods comparten el namespace "petdate".
   MS_USUARIOS_URL: "http://ms-usuarios:8081"
   MS_MASCOTAS_URL: "http://ms-mascotas:8082"
   MS_SERVICIOS_URL: "http://ms-servicios:8083"
