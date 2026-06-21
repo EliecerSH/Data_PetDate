@@ -1,0 +1,79 @@
+# =====================================================================
+# Capa Data Privada
+# MongoDB corre como StatefulSet en el nodegroup "ng-data" (taint
+# tier=data:NoSchedule), en subred privada, sin Service publico y sin
+# ruta de entrada salvo desde los pods del backend (ver
+# k8s/network/network-policies.yaml). No se expone NodePort ni LoadBalancer.
+# =====================================================================
+apiVersion: v1
+kind: Service
+metadata:
+  name: mongodb
+  namespace: petdate
+  labels: { app: mongodb, tier: data }
+spec:
+  clusterIP: None      # headless service, requerido por StatefulSet
+  selector:
+    app: mongodb
+  ports:
+    - port: 27017
+      targetPort: 27017
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: mongodb
+  namespace: petdate
+  labels: { app: mongodb, tier: data }
+spec:
+  serviceName: mongodb
+  replicas: 1
+  selector:
+    matchLabels: { app: mongodb }
+  template:
+    metadata:
+      labels: { app: mongodb, tier: data }
+    spec:
+      nodeSelector:
+        tier: data
+      tolerations:
+        - key: tier
+          operator: Equal
+          value: data
+          effect: NoSchedule
+      containers:
+        - name: mongodb
+          image: mongo:7.0
+          ports:
+            - containerPort: 27017
+          env:
+            - name: MONGO_INITDB_DATABASE
+              valueFrom: { secretKeyRef: { name: petdate-secrets, key: MONGO_DATABASE } }
+            - name: MONGO_INITDB_ROOT_USERNAME
+              valueFrom: { secretKeyRef: { name: petdate-secrets, key: MONGO_USER } }
+            - name: MONGO_INITDB_ROOT_PASSWORD
+              valueFrom: { secretKeyRef: { name: petdate-secrets, key: MONGO_PASSWORD } }
+          volumeMounts:
+            - name: mongo-data
+              mountPath: /data/db
+          resources:
+            requests: { cpu: "250m", memory: "512Mi" }
+            limits: { cpu: "1", memory: "1Gi" }
+          readinessProbe:
+            exec:
+              command: ["mongosh", "--eval", "db.adminCommand('ping')"]
+            initialDelaySeconds: 20
+            periodSeconds: 10
+          livenessProbe:
+            exec:
+              command: ["mongosh", "--eval", "db.adminCommand('ping')"]
+            initialDelaySeconds: 30
+            periodSeconds: 20
+  volumeClaimTemplates:
+    - metadata:
+        name: mongo-data
+      spec:
+        accessModes: ["ReadWriteOnce"]    # EBS via gp2/gp3 default StorageClass; un solo pod de Mongo, no necesita ReadWriteMany
+        resources:
+          requests:
+            storage: 20Gi

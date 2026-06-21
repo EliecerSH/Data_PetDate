@@ -59,9 +59,6 @@ services:
 
 volumes:
   petdate-data:
-  # Volumen compartido de imagenes: lo escriben ms-mascotas y ms-servicios
-  # (montado como external en Backend/docker-compose.yml) y lo sirve este
-  # mismo stack a traves de "imagen-server".
   petdate-uploads:
     name: petdate-uploads
 

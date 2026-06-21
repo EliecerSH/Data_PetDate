@@ -1,0 +1,58 @@
+# Respaldo diario de MongoDB (equivalente al servicio "mongo-backup" de
+# Data/docker-compose.yml), pero como CronJob de Kubernetes en lugar de un
+# contenedor con loop infinito. Retiene los ultimos 7 dumps en un PVC.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: mongo-backup-pvc
+  namespace: petdate
+spec:
+  accessModes: ["ReadWriteOnce"]
+  resources:
+    requests:
+      storage: 10Gi
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: mongo-backup
+  namespace: petdate
+spec:
+  schedule: "0 3 * * *"     # todos los dias a las 03:00
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          nodeSelector:
+            tier: data
+          tolerations:
+            - key: tier
+              operator: Equal
+              value: data
+              effect: NoSchedule
+          restartPolicy: OnFailure
+          containers:
+            - name: mongo-backup
+              image: mongo:7.0
+              env:
+                - name: MONGO_USER
+                  valueFrom: { secretKeyRef: { name: petdate-secrets, key: MONGO_USER } }
+                - name: MONGO_PASSWORD
+                  valueFrom: { secretKeyRef: { name: petdate-secrets, key: MONGO_PASSWORD } }
+                - name: MONGO_DATABASE
+                  valueFrom: { secretKeyRef: { name: petdate-secrets, key: MONGO_DATABASE } }
+              command: ["/bin/sh", "-c"]
+              args:
+                - >
+                  FECHA=$(date +%Y-%m-%d_%H-%M-%S);
+                  mongodump --host mongodb --port 27017 --username "$MONGO_USER" --password "$MONGO_PASSWORD"
+                  --authenticationDatabase admin --db "$MONGO_DATABASE"
+                  --archive=/backups/backup_$FECHA.gz --gzip;
+                  find /backups -name '*.gz' -mtime +7 -delete;
+              volumeMounts:
+                - name: backups
+                  mountPath: /backups
+          volumes:
+            - name: backups
+              persistentVolumeClaim:
+                claimName: mongo-backup-pvc
